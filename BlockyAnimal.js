@@ -103,7 +103,7 @@ let g_pokedTime;
 let g_eyeScale = 1.0
 
 function addActionsForHtmlUI() {
-  document.getElementById('rotateSlide').addEventListener('mousemove', function () { g_globalAngleX = this.value; renderAllShapes(); });
+  //document.getElementById('rotateSlide').addEventListener('mousemove', function () { g_globalAngleX = this.value; renderAllShapes(); });
   document.getElementById('crabMoveSlide').addEventListener('mousemove', function () { g_crabX = this.value / 100.0; renderAllShapes(); });
   document.getElementById('crabArmSlide').addEventListener('mousemove', function () { g_crabArm = this.value; renderAllShapes(); });
   document.getElementById('crabPinchSlide').addEventListener('mousemove', function () { g_crabPinch = this.value; renderAllShapes(); });
@@ -207,7 +207,7 @@ function convertCoordinatesEventToGL(ev) {
 function renderAllShapes() {
   var startTimed = performance.now();
 
-  var globalRotMat = new Matrix4().rotate(g_globalAngleX, 0, 1, 0).rotate(g_globalAngleY, 1, 0, 0);
+  var globalRotMat = new Matrix4().rotate(g_globalAngleX % 360, 0, 1, 0).rotate(g_globalAngleY % 360, 1, 0, 0);
   gl.uniformMatrix4fv(u_GlobalRotateMatrix, false, globalRotMat.elements);
   // Clear <canvas>
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
