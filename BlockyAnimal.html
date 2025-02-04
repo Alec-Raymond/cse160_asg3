@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <title>Change a point color</title>
+</head>
+
+<body onload="main()">
+  <canvas id="webgl" width="400" height="400">
+    Please use a browser that supports "canvas"
+  </canvas>
+  <br><br>
+  <p id="numdot"> XXX</p>
+  <p>
+    Move Crab<input type="range" min="-30" max="30" value="0" class="slider" id="crabMoveSlide">
+    Animation<input type="checkbox" id="animationMoveButton">
+  </p>
+  <p>
+    Crab Arm<input type="range" min="0" max="15" value="0" class="slider" id="crabArmSlide">
+    Animation<input type="checkbox" id="animationArmButton">
+  </p>
+  <p>
+    Crab Pincher<input type="range" min="-15" max="15" value="0" class="slider" id="crabPinchSlide">
+    Animation<input type="checkbox" id="animationPinchButton">
+  </p>
+  <br><br>
+  I added ovals to improve the paint program, and to make the drawing I had in mind possible.
+  <br><br>
+  <script src="webgl-utils.js"></script>
+  <script src="webgl-debug.js"></script>
+  <script src="cuon-utils.js"></script>
+  <script src="cuon-matrix.js"></script>
+  <script src="Triangle.js"></script>
+  <script src="Sphere.js"></script>
+  <script src="Cube.js"></script>
+  <script src="BlockyAnimal.js"></script>
+</body>
+
+</html>
