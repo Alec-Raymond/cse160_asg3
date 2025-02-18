@@ -821,7 +821,7 @@ function keyup(ev) {
   
 }
 
-// Add event listeners for keydown and keyup
+// Add event listeners for keydown and keyupa
 window.addEventListener('keydown', keydown);
 window.addEventListener('keyup', keyup);
 /*
