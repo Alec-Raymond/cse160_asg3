@@ -7,34 +7,27 @@
 </head>
 
 <body onload="main()">
-  <canvas id="webgl" width="400" height="400">
+  <canvas id="webgl" width="600" height="600">
     Please use a browser that supports "canvas"
   </canvas>
   <br><br>
   <p id="numdot"> XXX</p>
   <p>
-  <!--Rotate Slider<input type="range" min="-180" max="180" value="0" class="slider" id="rotateSlide"> -->
-  </p>
-  <p>
-    Move Crab<input type="range" min="-30" max="30" value="0" class="slider" id="crabMoveSlide">
-    Animation<input type="checkbox" id="animationMoveButton">
-  </p>
-  <p>
-    Crab Arm<input type="range" min="0" max="15" value="0" class="slider" id="crabArmSlide">
-    Animation<input type="checkbox" id="animationArmButton">
-  </p>
-  <p>
-    Crab Pincher<input type="range" min="-15" max="15" value="0" class="slider" id="crabPinchSlide">
-    Animation<input type="checkbox" id="animationPinchButton">
-  </p>
+    Navigate the corn maze to win. <br>
+    Controls:<br>
+    - WASD to move <br>
+    - Click screen to navigate with mouse<br>
+    - Spacebar to jump (wow!)<br>
+    - Remove dry corn with V<br>
+    - Add it back with C<br>
+    - Q and E rotate screen <br>
+    </p>
   <br><br>
   <br><br>
   <script src="webgl-utils.js"></script>
   <script src="webgl-debug.js"></script>
   <script src="cuon-utils.js"></script>
   <script src="cuon-matrix.js"></script>
-  <script src="Triangle.js"></script>
-  <script src="Sphere.js"></script>
   <script src="Cube.js"></script>
   <script src="BlockyAnimal.js"></script>
 </body>

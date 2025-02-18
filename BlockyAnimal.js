@@ -1,28 +1,66 @@
 // ColoredPoint.js (c) 2012 matsuda
 // Vertex shader program
 var VSHADER_SOURCE = `
+  precision mediump float;
   attribute vec4 a_Position;
+  attribute vec2 a_UV;
+  varying vec2 v_UV;
   uniform mat4 u_ModelMatrix;
   uniform mat4 u_GlobalRotateMatrix;
+  uniform mat4 u_ViewMatrix;
+  uniform mat4 u_ProjectionMatrix;
   void main() {
-    gl_Position = u_GlobalRotateMatrix * u_ModelMatrix * a_Position;
-  }`;
+    gl_Position = u_ProjectionMatrix * u_ViewMatrix * u_GlobalRotateMatrix * u_ModelMatrix * a_Position;
+    v_UV = a_UV;
+    }`;
 
 // Fragment shader program
 var FSHADER_SOURCE = `
   precision mediump float;
+  varying vec2 v_UV;
   uniform vec4 u_FragColor;
+  uniform sampler2D u_Sampler0;
+  uniform sampler2D u_Sampler1;
+  uniform sampler2D u_Sampler2;
+  uniform sampler2D u_Sampler3;
+  uniform sampler2D u_Sampler4;
+  uniform int u_whichTexture;
   void main() {
-    gl_FragColor = u_FragColor;
+    if (u_whichTexture == -2) {
+      gl_FragColor = u_FragColor;
+    } else if (u_whichTexture == -1) {
+      gl_FragColor = vec4(v_UV,1.0,1.0);
+    } else if (u_whichTexture == 0) {
+      gl_FragColor = texture2D(u_Sampler0, v_UV); 
+    } else if (u_whichTexture == 1) {
+      gl_FragColor = texture2D(u_Sampler1, v_UV); 
+    } else if (u_whichTexture == 2) {
+      gl_FragColor = texture2D(u_Sampler2, v_UV); 
+    } else if (u_whichTexture == 3) {
+      gl_FragColor = texture2D(u_Sampler3, v_UV); 
+    } else if (u_whichTexture == 4) {
+      gl_FragColor = texture2D(u_Sampler4, v_UV); 
+    } else {
+      gl_FragColor = vec4(1.0, 0.2, 0.2, 1.0);
+    }
   }`;
 
 
 let canvas;
 let gl;
 let a_Position;
+let a_UV;
 let u_FragColor;
 let u_ModelMatrix;
+let u_ProjectionMatrix;
+let u_ViewMatrix;
 let u_GlobalRotateMatrix;
+let u_Sampler0;
+let u_Sampler1;
+let u_Sampler2;
+let u_Sampler3;
+let u_Sampler4;
+let u_whichTexture;
 
 
 function setupWebGL() {
@@ -54,6 +92,12 @@ function connectVariablesToGLSL() {
     return;
   }
 
+  a_UV = gl.getAttribLocation(gl.program, 'a_UV');
+  if (a_UV < 0) {
+    console.log('Failed to get the storage location of a_UV');
+    return;
+  }
+
   // Get the storage location of u_FragColor
   u_FragColor = gl.getUniformLocation(gl.program, 'u_FragColor');
   if (!u_FragColor) {
@@ -70,6 +114,54 @@ function connectVariablesToGLSL() {
   u_GlobalRotateMatrix = gl.getUniformLocation(gl.program, 'u_GlobalRotateMatrix');
   if (!u_ModelMatrix) {
     console.log('Failed to get the storage location of u_GlobalRotateMatrix');
+    return;
+  }
+
+  u_Sampler0 = gl.getUniformLocation(gl.program, 'u_Sampler0');
+  if (!u_Sampler0) {
+    console.log('Failed to get the storage location of u_Sampler0');
+    return false;
+  }
+
+  u_Sampler1 = gl.getUniformLocation(gl.program, 'u_Sampler1');
+  if (!u_Sampler1) {
+    console.log('Failed to get the storage location of u_Sampler1');
+    return false;
+  }
+
+  u_Sampler2 = gl.getUniformLocation(gl.program, 'u_Sampler2');
+  if (!u_Sampler2) {
+    console.log('Failed to get the storage location of u_Sampler2');
+    return false;
+  }
+
+  u_Sampler3 = gl.getUniformLocation(gl.program, 'u_Sampler3');
+  if (!u_Sampler3) {
+    console.log('Failed to get the storage location of u_Sampler3');
+    return false;
+  }
+
+  u_Sampler4 = gl.getUniformLocation(gl.program, 'u_Sampler4');
+  if (!u_Sampler4) {
+    console.log('Failed to get the storage location of u_Sampler4');
+    return false;
+  }
+
+  u_whichTexture = gl.getUniformLocation(gl.program, 'u_whichTexture');
+  if (!u_whichTexture) {
+    console.log('Failed to get the storage location of u_whichTexture');
+    return false;
+  }
+
+  u_ProjectionMatrix = gl.getUniformLocation(gl.program, 'u_ProjectionMatrix');
+  if (!u_ProjectionMatrix) {
+    console.log('Failed to get the storage location of u_ProjectionMatrix');
+    return;
+  }
+
+  u_ViewMatrix = gl.getUniformLocation(gl.program, 'u_ViewMatrix');
+  if (!u_ViewMatrix) {
+    console.log('Failed to get the storage location of u_ViewMatrix');
     return;
   }
 
@@ -97,29 +189,28 @@ let g_pinchAnimation = false;
 let g_isDragging = false;
 let g_lastX, g_lastY;
 let g_rotationX = 0, g_rotationY = 0;
-let trackedChange = 0
+let trackedChange = 0;
 let g_poked = false;
 let g_pokedTime;
-let g_eyeScale = 1.0
+let g_eyeScale = 1.0;
+var g_vertexBuffer = null;
+var g_uvBuffer = null;
+var g_jump = 0;
 
 function addActionsForHtmlUI() {
   //document.getElementById('rotateSlide').addEventListener('mousemove', function () { g_globalAngleX = this.value; renderAllShapes(); });
-  document.getElementById('crabMoveSlide').addEventListener('mousemove', function () { g_crabX = this.value / 100.0; renderAllShapes(); });
-  document.getElementById('crabArmSlide').addEventListener('mousemove', function () { g_crabArm = this.value; renderAllShapes(); });
-  document.getElementById('crabPinchSlide').addEventListener('mousemove', function () { g_crabPinch = this.value; renderAllShapes(); });
-
-  document.getElementById("animationMoveButton").addEventListener("change", function () { g_moveAnimation = !g_moveAnimation; renderAllShapes(); });
-  document.getElementById("animationArmButton").addEventListener("change", function () { g_armAnimation = !g_armAnimation; renderAllShapes(); });
-  document.getElementById("animationPinchButton").addEventListener("change", function () { g_pinchAnimation = !g_pinchAnimation; renderAllShapes(); });
-
   canvas.addEventListener("mousedown", (event) => {
-    g_isDragging = true;
-    g_lastX = event.clientX;
-    g_lastY = event.clientY;
+    if (!g_isDragging) {
+      g_isDragging = true;
+      g_lastX = event.clientX;
+      g_lastY = event.clientY;
+    } else {
+      g_isDragging = false;
+    }
   });
 
   canvas.addEventListener("mouseup", () => {
-    g_isDragging = false;
+
   });
 
   canvas.addEventListener("mousemove", (event) => {
@@ -133,36 +224,209 @@ function addActionsForHtmlUI() {
     g_lastX = event.clientX;
     g_lastY = event.clientY;
     trackedChange += deltaX;
-    //console.log(trackedChange)
-    // Adjust sensitivity
-    g_globalAngleX += deltaX* 0.7;
-    g_globalAngleY+= deltaY * 0.7;
+    let d = new Vector3(g_at.elements);
+    d.sub(g_eye);
+
+    let r = Math.sqrt(d.elements[0] ** 2 + d.elements[2] ** 2);
+    theta = Math.atan2(d.elements[2], d.elements[0]);
+    theta += deltaX * 0.25* Math.PI / 36;
+    g_at.elements[0] = r * Math.cos(theta);
+    g_at.elements[2] = r * Math.sin(theta);
+    console.log(-0.5 * (Math.abs(deltaY)) * (deltaY ** 2));
+    g_at.elements[1] += -0.7 * deltaY;
+    //g_globalAngleX += deltaX * 0.7;
+    //g_globalAngleY += deltaY * 0.7;
+    //renderAllShapes();
   });
 
   canvas.addEventListener("click", (event) => {
     if (event.shiftKey) {
-        g_poked = true;
-        g_pokedTime = performance.now();
+      g_poked = true;
+      g_pokedTime = performance.now();
     }
-});
+  });
+}
+
+
+function initTextures() {
+  var image0 = new Image();  // Create the image object
+  if (!image0) {
+    console.log('Failed to create the image0 object');
+    return false;
+  }
+  // Register the event handler to be called on loading an image
+  image0.onload = function () { sendTextureToTEXTURE0(image0); };
+  // Tell the browser to load an image
+  image0.src = 'path.jpg';
+
+  var image1 = new Image();  // Create the image object
+  if (!image1) {
+    console.log('Failed to create the image1 object');
+    return false;
+  }
+  // Register the event handler to be called on loading an image
+  image1.onload = function () { sendTextureToTEXTURE1(image1); };
+  // Tell the browser to load an image
+  image1.src = 'sky.jpg';
+
+  var image2 = new Image();  // Create the image object
+  if (!image2) {
+    console.log('Failed to create the image2 object');
+    return false;
+  }
+  // Register the event handler to be called on loading an image
+  image2.onload = function () { sendTextureToTEXTURE2(image2); };
+  // Tell the browser to load an image
+  image2.src = 'corn.jpg';
+
+  var image3 = new Image();  // Create the image object
+  if (!image3) {
+    console.log('Failed to create the image3 object');
+    return false;
+  }
+  // Register the event handler to be called on loading an image
+  image3.onload = function () { sendTextureToTEXTURE3(image3); };
+  // Tell the browser to load an image
+  image3.src = 'you_win.jpg';
+
+  var image4 = new Image();  // Create the image object
+  if (!image4) {
+    console.log('Failed to create the image3 object');
+    return false;
+  }
+  // Register the event handler to be called on loading an image
+  image4.onload = function () { sendTextureToTEXTURE4(image4); };
+  // Tell the browser to load an image
+  image4.src = 'destructable_corn.jpg';
+
+  return true;
+}
+
+function sendTextureToTEXTURE0(image) {
+  var texture = gl.createTexture();   // Create a texture object
+  if (!texture) {
+    console.log('Failed to create the texture object');
+    return false;
+  }
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1); // Flip the image's y axis
+  // Enable texture unit0
+  gl.activeTexture(gl.TEXTURE0);
+  // Bind the texture object to the target
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+
+  // Set the texture parameters
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  // Set the texture image
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+
+  // Set the texture unit 0 to the sampler
+  gl.uniform1i(u_Sampler0, 0);
+}
+
+function sendTextureToTEXTURE1(image) {
+  var texture = gl.createTexture();   // Create a texture object
+  if (!texture) {
+    console.log('Failed to create the texture object');
+    return false;
+  }
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1); // Flip the image's y axis
+  // Enable texture unit0
+  gl.activeTexture(gl.TEXTURE1);
+  // Bind the texture object to the target
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+
+  // Set the texture parameters
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  // Set the texture image
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+
+  // Set the texture unit 0 to the sampler
+  gl.uniform1i(u_Sampler1, 1);
+}
+
+function sendTextureToTEXTURE2(image) {
+  var texture = gl.createTexture();   // Create a texture object
+  if (!texture) {
+    console.log('Failed to create the texture object');
+    return false;
+  }
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1); // Flip the image's y axis
+  // Enable texture unit0
+  gl.activeTexture(gl.TEXTURE2);
+  // Bind the texture object to the target
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+
+  // Set the texture parameters
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  // Set the texture image
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+
+  // Set the texture unit 0 to the sampler
+  gl.uniform1i(u_Sampler2, 2);
+}
+
+function sendTextureToTEXTURE3(image) {
+  var texture = gl.createTexture();   // Create a texture object
+  if (!texture) {
+    console.log('Failed to create the texture object');
+    return false;
+  }
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1); // Flip the image's y axis
+  // Enable texture unit0
+  gl.activeTexture(gl.TEXTURE3);
+  // Bind the texture object to the target
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+
+  // Set the texture parameters
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  // Set the texture image
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+
+  // Set the texture unit 0 to the sampler
+  gl.uniform1i(u_Sampler3, 3);
+}
+
+function sendTextureToTEXTURE4(image) {
+  var texture = gl.createTexture();   // Create a texture object
+  if (!texture) {
+    console.log('Failed to create the texture object');
+    return false;
+  }
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1); // Flip the image's y axis
+  // Enable texture unit0
+  gl.activeTexture(gl.TEXTURE4);
+  // Bind the texture object to the target
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  // Set the texture parameters
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  // Set the texture image
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, image);
+
+  // Set the texture unit 0 to the sampler
+  gl.uniform1i(u_Sampler4, 4);
 }
 
 function main() {
   setupWebGL();
+
   connectVariablesToGLSL();
 
   addActionsForHtmlUI();
+
+  document.onkeydown = keydown;
 
   // Register function (event handler) to be called on a mouse press
   //canvas.onmousedown = function (ev) { click(ev); };
   //canvas.onmousemove = function (ev) { if (ev.buttons == 1) { click(ev); } };
   // Specify the color for clearing <canvas>
+  initTextures(gl, 0);
+
   gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
   // Clear <canvas>
   //gl.clear(gl.COLOR_BUFFER_BIT);
-  renderAllShapes();
-  tick();
+  //renderAllShapes();
+  requestAnimationFrame(tick);
 }
 
 var g_shapesList = [];
@@ -204,8 +468,70 @@ function convertCoordinatesEventToGL(ev) {
   return [x, y];
 }
 
+var g_eye = new Vector3([-0.5, 0.2, -0.5]);
+var g_at = new Vector3([100, 0.2, 0]);
+var g_up = new Vector3([0, 1, 0]);
+
+
+
+var g_map = [
+  [1, 1, 1, 1, 1, 1, 1, 1],
+  [1, 0, 0, 0, 0, 1, 0, 1],
+  [1, 0, 1, 1, 0, 0, 0, 1],
+  [1, 0, 1, 0, 1, 1, 0, 1],
+  [1, 0, 1, 0, 0, 1, 0, 1],
+  [1, 0, 1, 1, 0, 1, 0, 1],
+  [1, 0, 0, 0, 0, 1, 0, 1],
+  [1, 1, 1, 1, 1, 1, 1, 1],
+];
+
+var g_destructable_map = [
+  [0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 1, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 1, 0],
+  [0, 0, 0, 0, 1, 0, 1, 0],
+  [0, 1, 0, 0, 0, 0, 1, 0],
+  [0, 0, 0, 0, 0, 0, 1, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0],
+];
+
+function drawMap() {
+  for (x = 0; x < 8; x++) {
+    for (y = 0; y < 8; y++) {
+      if (g_map[x][y] == 1) {
+        var body = new Cube();
+        body.textureNum = 2;
+        if (x == 7 && y == 6) {
+          body.textureNum = 3
+        }
+        body.color = [1.0, 1.0, 1.0, 1.0];
+        body.matrix.scale(1, 1.5, 1);
+        body.matrix.translate(x - 4, -.45, y - 4);
+        body.render();
+      } else if (g_destructable_map[x][y] == 1) {
+        var body = new Cube();
+        body.textureNum = 4;
+        body.color = [1.0, 1.0, 1.0, 1.0];
+        body.matrix.scale(1, 1.5, 1);
+        body.matrix.translate(x - 4, -0.45, y - 4);
+        body.render();
+      }
+    }
+  }
+}
+
+
 function renderAllShapes() {
-  var startTimed = performance.now();
+  var startTime = performance.now();
+
+  var projMat = new Matrix4();
+  projMat.setPerspective(50, 1 * canvas.width / canvas.height, .1, 100);
+  gl.uniformMatrix4fv(u_ProjectionMatrix, false, projMat.elements);
+
+  var viewMat = new Matrix4();
+  viewMat.setLookAt(g_eye.elements[0], g_eye.elements[1], g_eye.elements[2], g_at.elements[0], g_at.elements[1], g_at.elements[2], g_up.elements[0], g_up.elements[1], g_up.elements[2]); // (eye, at, up)
+  gl.uniformMatrix4fv(u_ViewMatrix, false, viewMat.elements);
 
   var globalRotMat = new Matrix4().rotate(g_globalAngleX % 360, 0, 1, 0).rotate(g_globalAngleY % 360, 1, 0, 0);
   gl.uniformMatrix4fv(u_GlobalRotateMatrix, false, globalRotMat.elements);
@@ -218,14 +544,36 @@ function renderAllShapes() {
   //  g_shapesList[i].render();
   //}
 
-  var body = new Cube();
-  body.color = [1.0, 0.0, 0.0, 1.0];
-  body.matrix.translate(-0.33 + g_crabX, 0, 0.25);
-  body.matrix.rotate(-g_crabX * 10.0, 0, 0, 1);
-  var bodyMat = new Matrix4(body.matrix);
-  body.matrix.scale(0.5, 0.5, 0.25);
-  body.render();
 
+  var ground = new Cube();
+  ground.color = [1.0, 0.0, 0.0, 1.0];
+  ground.textureNum = 0;
+  ground.matrix.translate(0, -.75, 0.0);
+  ground.matrix.scale(16, 0.001, 16);
+  //ground.matrix.translate(-0.5, 0, -0.5);
+  ground.render();
+
+  ground.matrix.translate(-1, 0, -1);
+  ground.render();
+
+  ground.matrix.translate(1, 0, 0);
+  ground.render();
+
+  ground.matrix.translate(-1, 0, 1);
+  ground.render();
+
+
+
+  var sky = new Cube();
+  sky.color = [1.0, 0.0, 0.0, 1.0];
+  sky.textureNum = 1;
+  sky.matrix.scale(64, 64, 64);
+  sky.matrix.translate(-0.5, -0.5, -0.5);
+  sky.render();
+
+  drawMap();
+
+  /*
   var arm1 = new Cube();
   arm1.color = [1.0, 0.0, 0.0, 1.0];
   arm1.matrix = new Matrix4(bodyMat);
@@ -299,9 +647,9 @@ function renderAllShapes() {
   mouth.matrix = new Matrix4(bodyMat);
   mouth.matrix.translate(0.1 - 0.1 * g_crabX, 0.05, -0.01);
   mouth.matrix.scale(0.3, 0.03, 0.03);
-  mouth.render();
+  mouth.render();*/
 
-  var duration = performance.now() + 1 - startTimed;
+  var duration = performance.now() + 1 - startTime;
   sendTextToHTML(" ms: " + Math.floor(duration) + " fps: " + Math.floor(10000 / duration) / 10, "numdot");
 }
 
@@ -316,8 +664,8 @@ var g_startTime = performance.now() / 1000.0;
 var g_seconds = performance.now() / 1000.0 - g_startTime;
 
 function tick() {
-  g_seconds = performance.now() / 1000.0 - g_startTime;
-
+  //g_seconds = performance.now() / 1000.0 - g_startTime;
+  console.log("test")
   updateAnimationAngles();
 
   renderAllShapes();
@@ -326,23 +674,119 @@ function tick() {
 }
 
 function updateAnimationAngles() {
-  if (g_moveAnimation) {
-    g_crabX = (0.25 * Math.sin(3 * g_seconds));
-  }
-  if (g_armAnimation) {
-    g_crabArm = (7.5 * Math.sin(6 * g_seconds) + 7.5);
-  }
-  if (g_pinchAnimation) {
-    g_crabPinch = (15 * Math.sin(9 * g_seconds));
-  }
-  if (g_poked) {
-    g_eyeScale = (1.5 * Math.sin(13 * g_seconds))+ 1.5;
-    console.log(g_pokedTime - performance.now())
-    if (performance.now() - g_pokedTime> 2000) {
-      g_eyeScale = 1.0;
-      g_poked = false;
+  if (g_jump > 0) {
+    g_jump++;
+    if (g_jump < 10) {
+      console.log("aloha")
+      g_eye.elements[1] += 0.01;
+    } else if (g_jump < 20) {
+      g_eye.elements[1] +=0.005;
+    }else if (g_jump < 25) {
+      g_eye.elements[1] +=0.001;
+    }else if (g_jump < 30) {
+      g_eye.elements[1] -= 0.001;
+    }else if (g_jump < 40) {
+      g_eye.elements[1] -=0.005;
+    }else if (g_jump < 50) {
+      g_eye.elements[1] -= 0.01;
+    }else  {
+      g_jump = 0;
     }
   }
+}
+
+function keydown(ev) {
+  let d = new Vector3(g_at.elements);
+  d.sub(g_eye);
+  d.elements[1] = 0;
+
+  let r = Math.sqrt(d.elements[0] ** 2 + d.elements[2] ** 2);
+  theta = Math.atan2(d.elements[2], d.elements[0]);
+
+  d.normalize();
+  let y = new Vector3([0, 1, 0]);
+  //console.log(d.elements);
+  let right = Vector3.cross(d, y);
+  right.normalize();
+  //d.mul(-1);
+  let left = Vector3.cross(y, d);
+  left.normalize();
+
+
+  let eye_prev = new Vector3(g_eye.elements);
+  let at_prev = new Vector3(g_at.elements);
+  if (ev.keyCode == 65) {
+    left.mul(0.25)
+    g_eye.add(left);
+    g_at.add(left);
+  } else if (ev.keyCode == 87) {
+    d.mul(0.5)
+    g_eye.add(d);
+    g_at.add(d);
+  } else if (ev.keyCode == 68) {
+    right.mul(0.25)
+    g_eye.add(right);
+    g_at.add(right);
+  } else if (ev.keyCode == 83) {
+    d.mul(-0.5);
+    g_eye.add(d);
+    g_at.add(d);
+  } else if (ev.keyCode == 69) {
+    theta += Math.PI / 36;
+    g_at.elements[0] = r * Math.cos(theta);
+    g_at.elements[2] = r * Math.sin(theta);
+  } else if (ev.keyCode == 81) {
+    theta -= Math.PI / 36;
+    g_at.elements[0] = r * Math.cos(theta);
+    g_at.elements[2] = r * Math.sin(theta);
+  } else if (ev.keyCode == 86) {
+    //d.mul(1.6);
+    d.add(g_eye);
+    for (x = 0; x < 8; x++) {
+      for (y = 0; y < 8; y++) {
+        if (g_destructable_map[x][y] == 1) {
+          if (d.elements[0] > (x - 4) && d.elements[0] < x - 3 && d.elements[2] > y - 4 && d.elements[2] < y - 3) {
+            g_destructable_map[x][y] = 0;
+          }
+        }
+      }
+    }
+  } else if (ev.keyCode == 67) {
+    //d.mul(1.6);
+    d.add(g_eye);
+    for (x = 0; x < 8; x++) {
+      for (y = 0; y < 8; y++) {
+        if (g_destructable_map[x][y] == 0) {
+          if (d.elements[0] > (x - 4) && d.elements[0] < x - 3 && d.elements[2] > y - 4 && d.elements[2] < y - 3) {
+            g_destructable_map[x][y] = 1;
+            
+          }
+
+        }
+      }
+    }
+  } else if (ev.keyCode == 32) {
+    g_jump = 1; 
+    console.log("yo", g_jump)
+  }
+  if (eye_prev.elements != g_eye.elements) {
+    for (x = 0; x < 8; x++) {
+      for (y = 0; y < 8; y++) {
+        if (g_map[x][y] == 1 || g_destructable_map[x][y] == 1) {
+          //console.log(g_eye.elements[0])
+          //console.log(g_eye.elements[0] > x-4)
+          if (g_eye.elements[0] > (x - 4.1) && g_eye.elements[0] < x - 2.9 && g_eye.elements[2] > y - 4.1 && g_eye.elements[2] < y - 2.9) {
+            console.log("collision detected: ", x, y);
+            g_eye = eye_prev;
+            g_at = at_prev;
+          }
+        }
+      }
+    }
+  }
+
+
+  console.log("g_eye: ", g_eye.elements);
 }
 
 function drawPicture() {
