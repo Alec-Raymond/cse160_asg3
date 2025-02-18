@@ -197,6 +197,18 @@ var g_vertexBuffer = null;
 var g_uvBuffer = null;
 var g_jump = 0;
 
+let keys = {
+  'W': false,
+  'A': false,
+  'S': false,
+  'D': false,
+  'E': false,
+  'Q': false,
+  'V': false,
+  'C': false,
+  'Space': false
+};
+
 function addActionsForHtmlUI() {
   //document.getElementById('rotateSlide').addEventListener('mousemove', function () { g_globalAngleX = this.value; renderAllShapes(); });
   canvas.addEventListener("mousedown", (event) => {
@@ -667,7 +679,7 @@ function tick() {
   //g_seconds = performance.now() / 1000.0 - g_startTime;
   console.log("test")
   updateAnimationAngles();
-
+  updateMovement();
   renderAllShapes();
 
   requestAnimationFrame(tick);
@@ -695,6 +707,124 @@ function updateAnimationAngles() {
   }
 }
 
+function updateMovement() {
+  let d = new Vector3(g_at.elements);
+  d.sub(g_eye);
+  d.elements[1] = 0;
+  d.normalize();
+
+  let y = new Vector3([0, 1, 0]);
+  let right = Vector3.cross(d, y);
+  right.normalize();
+  let left = Vector3.cross(y, d);
+  left.normalize();
+
+  let eye_prev = new Vector3(g_eye.elements);
+  let at_prev = new Vector3(g_at.elements);
+
+  if (keys['A']) {
+    left.mul(0.025); // Adjust the speed as needed
+    g_eye.add(left);
+    g_at.add(left);
+  }
+  if (keys['W']) {
+    d.mul(0.05); // Adjust the speed as needed
+    g_eye.add(d);
+    g_at.add(d);
+  }
+  if (keys['D']) {
+    right.mul(0.025); // Adjust the speed as needed
+    g_eye.add(right);
+    g_at.add(right);
+  }
+  if (keys['S']) {
+    d.mul(-0.05); // Adjust the speed as needed
+    g_eye.add(d);
+    g_at.add(d);
+  }
+
+  // Handle collision detection
+  if (eye_prev.elements != g_eye.elements) {
+    for (let x = 0; x < 8; x++) {
+      for (let y = 0; y < 8; y++) {
+        if (g_map[x][y] == 1 || g_destructable_map[x][y] == 1) {
+          if (g_eye.elements[0] > (x - 4.1) && g_eye.elements[0] < x - 2.9 && g_eye.elements[2] > y - 4.1 && g_eye.elements[2] < y - 2.9) {
+            console.log("collision detected: ", x, y);
+            g_eye = eye_prev;
+            g_at = at_prev;
+          }
+        }
+      }
+    }
+  }
+}
+
+function keydown(ev) {
+  let d = new Vector3(g_at.elements);
+  d.sub(g_eye);
+  d.elements[1] = 0;
+  
+
+  let r = Math.sqrt(d.elements[0] ** 2 + d.elements[2] ** 2);
+  theta = Math.atan2(d.elements[2], d.elements[0]);
+
+  d.normalize();
+  if (ev.keyCode == 65) keys['A'] = true; // A
+  else if (ev.keyCode == 87) keys['W'] = true; // W
+  else if (ev.keyCode == 68) keys['D'] = true; // D
+  else if (ev.keyCode == 83) keys['S'] = true; // S
+  else if (ev.keyCode == 69) {
+    theta += Math.PI / 36;
+    g_at.elements[0] = r * Math.cos(theta);
+    g_at.elements[2] = r * Math.sin(theta);
+  } else if (ev.keyCode == 81) {
+    theta -= Math.PI / 36;
+    g_at.elements[0] = r * Math.cos(theta);
+    g_at.elements[2] = r * Math.sin(theta);
+  } else if (ev.keyCode == 86) {
+    //d.mul(1.6);
+    d.add(g_eye);
+    for (x = 0; x < 8; x++) {
+      for (y = 0; y < 8; y++) {
+        if (g_destructable_map[x][y] == 1) {
+          if (d.elements[0] > (x - 4) && d.elements[0] < x - 3 && d.elements[2] > y - 4 && d.elements[2] < y - 3) {
+            g_destructable_map[x][y] = 0;
+          }
+        }
+      }
+    }
+  } else if (ev.keyCode == 67) {
+    //d.mul(1.6);
+    d.add(g_eye);
+    for (x = 0; x < 8; x++) {
+      for (y = 0; y < 8; y++) {
+        if (g_destructable_map[x][y] == 0) {
+          if (d.elements[0] > (x - 4) && d.elements[0] < x - 3 && d.elements[2] > y - 4 && d.elements[2] < y - 3) {
+            g_destructable_map[x][y] = 1;
+            
+          }
+
+        }
+      }
+    }
+  } else if (ev.keyCode == 32) {
+    g_jump = 1; 
+  }
+  
+}
+
+function keyup(ev) {
+  if (ev.keyCode == 65) keys['A'] = false; // A
+  else if (ev.keyCode == 87) keys['W'] = false; // W
+  else if (ev.keyCode == 68) keys['D'] = false; // D
+  else if (ev.keyCode == 83) keys['S'] = false; // S
+  
+}
+
+// Add event listeners for keydown and keyup
+window.addEventListener('keydown', keydown);
+window.addEventListener('keyup', keyup);
+/*
 function keydown(ev) {
   let d = new Vector3(g_at.elements);
   d.sub(g_eye);
@@ -788,7 +918,7 @@ function keydown(ev) {
 
   console.log("g_eye: ", g_eye.elements);
 }
-
+*/
 function drawPicture() {
   gl.uniform4f(u_FragColor, 0.5, 0.5, 0.6, 1.0);
   drawTriangle([-0.8, -0.2, 0.9, -0.7, -0.2, 0.2]);
